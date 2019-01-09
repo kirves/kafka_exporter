@@ -69,6 +69,7 @@ type kafkaOpts struct {
 	tlsInsecureSkipTLSVerify bool
 	kafkaVersion             string
 	useZooKeeperLag          bool
+	useZooKeeperBrokers      bool
 	uriZookeeper             []string
 	labels                   string
 }
@@ -110,6 +111,7 @@ func canReadFile(path string) bool {
 // NewExporter returns an initialized Exporter.
 func NewExporter(opts kafkaOpts, topicFilter string, groupFilter string) (*Exporter, error) {
 	var zookeeperClient *kazoo.Kazoo
+	var bList []string
 	config := sarama.NewConfig()
 	config.ClientID = clientID
 	kafkaVersion, err := sarama.ParseKafkaVersion(opts.kafkaVersion)
@@ -163,6 +165,14 @@ func NewExporter(opts kafkaOpts, topicFilter string, groupFilter string) (*Expor
 
 	if opts.useZooKeeperLag {
 		zookeeperClient, err = kazoo.NewKazoo(opts.uriZookeeper, nil)
+	}
+
+	if opts.useZooKeeperBrokers {
+		zookeeperClient, err = kazoo.NewKazoo(opts.uriZookeeper, nil)
+		if err == nil {
+			bList, err = zookeeperClient.BrokerList()
+			opts.uri = bList
+		}
 	}
 
 	client, err := sarama.NewClient(opts.uri, config)
@@ -464,6 +474,7 @@ func main() {
 	kingpin.Flag("tls.insecure-skip-tls-verify", "If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure.").Default("false").BoolVar(&opts.tlsInsecureSkipTLSVerify)
 	kingpin.Flag("kafka.version", "Kafka broker version").Default(sarama.V1_0_0_0.String()).StringVar(&opts.kafkaVersion)
 	kingpin.Flag("use.consumelag.zookeeper", "if you need to use a group from zookeeper").Default("false").BoolVar(&opts.useZooKeeperLag)
+	kingpin.Flag("use.zookeeper", "if you need to fetch Kafka servers from zookeeper").Default("false").BoolVar(&opts.useZooKeeperBrokers)
 	kingpin.Flag("zookeeper.server", "Address (hosts) of zookeeper server.").Default("localhost:2181").StringsVar(&opts.uriZookeeper)
 	kingpin.Flag("kafka.labels", "Kafka cluster name").Default("").StringVar(&opts.labels)
 
